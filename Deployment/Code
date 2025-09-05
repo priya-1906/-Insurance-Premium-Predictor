@@ -1,0 +1,107 @@
+# app.py
+import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
+
+st.set_page_config(page_title="SmartPremium", page_icon="💰", layout="centered")
+st.title("💰 SmartPremium: Insurance Premium Predictor")
+
+# --------- 1) Load trained pipeline (preprocessor + model) ---------
+@st.cache_resource
+def load_pipeline(path="artifacts/pipeline.joblib"):
+    pipe = joblib.load(path)
+    return pipe
+
+pipe = load_pipeline()
+
+# Get the preprocessor step (support either 'prep' or 'preprocessor')
+if "prep" in pipe.named_steps:
+    prep = pipe.named_steps["prep"]
+elif "preprocessor" in pipe.named_steps:
+    prep = pipe.named_steps["preprocessor"]
+else:
+    st.error("Preprocessor step not found in pipeline. Make sure it is named 'prep' or 'preprocessor'.")
+    st.stop()
+
+# Infer column lists from the ColumnTransformer
+try:
+    num_cols = list(prep.transformers_[0][2])
+    cat_cols = list(prep.transformers_[1][2])
+except Exception as e:
+    st.error(f"Could not infer numeric / categorical columns from preprocessor: {e}")
+    st.stop()
+
+all_cols = num_cols + cat_cols
+
+# --------- 2) Widget choices / sensible defaults ---------
+# Adjust these if your data has different categories
+choices = {
+    "Gender": ["Male", "Female"],
+    "Marital Status": ["Single", "Married", "Divorced", "Unknown"],
+    "Education Level": ["High School", "Bachelor's", "Master's", "PhD"],
+    "Occupation": ["Employed", "Self-Employed", "Unemployed", "Unknown"],
+    "Location": ["Urban", "Suburban", "Rural"],
+    "Policy Type": ["Basic", "Comprehensive", "Premium"],
+    "Customer Feedback": ["Poor", "Average", "Good", "Unknown"],
+    "Smoking Status": ["No", "Yes"],
+    "Exercise Frequency": ["Daily", "Weekly", "Monthly", "Rarely"],
+    "Property Type": ["House", "Apartment", "Condo"],
+}
+
+num_defaults = {
+    "Age": 35.0,
+    "Annual Income": 30000.0,
+    "Number of Dependents": 2.0,
+    "Health Score": 25.0,
+    "Previous Claims": 0.0,
+    "Vehicle Age": 10.0,
+    "Credit Score": 600.0,
+    "Insurance Duration": 5.0,
+    "Policy_Year": 2023.0,
+    "Policy_Month": 6.0,
+    "Policy_Age": 1.0,
+}
+
+st.caption("Enter customer & policy details, then click Predict.")
+
+# --------- 3) UI form ---------
+with st.form("predict_form"):
+    st.subheader("Numeric features")
+    inputs = {}
+
+    for c in num_cols:
+        val = float(num_defaults.get(c, 0.0))
+        # number_input uses step=1.0 for ints too; it’s fine since model accepts floats
+        inputs[c] = st.number_input(c, value=val, step=1.0)
+
+    st.subheader("Categorical features")
+    for c in cat_cols:
+        if c in choices:
+            inputs[c] = st.selectbox(c, choices[c], index=0)
+        else:
+            # fallback text input if we don't have a predefined list
+            inputs[c] = st.text_input(c, value="Unknown")
+
+    submitted = st.form_submit_button("Predict Premium 💡")
+
+# --------- 4) Predict ---------
+if submitted:
+    # Build a single-row DataFrame with exact training columns/order
+    row = {col: inputs.get(col, np.nan) for col in all_cols}
+    x = pd.DataFrame([row], columns=all_cols)
+
+    try:
+        pred = float(pipe.predict(x)[0])
+        st.success(f"Estimated Premium: **{pred:,.2f}**")
+    except Exception as e:
+        st.error(f"Prediction failed: {e}")
+
+    with st.expander("Show request payload"):
+        st.write(x)
+
+# --------- 5) Footer / health info ---------
+with st.expander("ℹ️ Model / schema info"):
+    st.write("Numeric columns:", num_cols)
+    st.write("Categorical columns:", cat_cols)
+    st.write("Pipeline steps:", list(pipe.named_steps.keys()))
