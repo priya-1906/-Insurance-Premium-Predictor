@@ -1,0 +1,80 @@
+import pandas as pd
+
+train_df = pd.read_csv("train.csv")
+test_df = pd.read_csv("test.csv")
+sample_submission = pd.read_csv("sample_submission.csv")
+
+print("Train shape:", train_df.shape)
+print("Test shape:", test_df.shape)
+print("Sample submission shape:", sample_submission.shape)
+
+train_df.head()
+-----------------------------------------------------------------
+  # A) Checking Null Values & Basic EDA
+
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# 1. Shape and preview
+print("🔹 Dataset shape:", train_df.shape)
+display(train_df.head())
+
+# 2. Info and column types
+print("\n🔹 Dataset Info:")
+train_df.info()
+
+# 3. Summary statistics for numeric columns
+print("\n🔹 Summary Statistics (Numeric):")
+display(train_df.describe())
+
+# 4. Missing values count
+print("\n🔹 Missing Values (Top 20):")
+missing = train_df.isnull().sum().sort_values(ascending=False)
+display(missing.head(20))
+
+# 5. Duplicate rows
+print("\n🔹 Duplicate Rows:", train_df.duplicated().sum())
+
+# 6. Unique values per categorical column
+print("\n🔹 Unique values in categorical columns:")
+cat_cols = train_df.select_dtypes(include='object').columns
+for col in cat_cols:
+    print(f"{col}: {train_df[col].nunique()} unique values → {train_df[col].unique()[:5]}...")
+
+# 7. Target column distribution
+TARGET = "Premium Amount"
+if TARGET in train_df.columns:
+    print(f"\n🔹 Target Column '{TARGET}' Stats:")
+    display(train_df[TARGET].describe())
+    plt.figure(figsize=(6,4))
+    sns.histplot(train_df[TARGET], kde=True)
+    plt.title(f"Distribution of {TARGET}")
+    plt.show()
+
+# 8. Numeric column summaries
+print("\n🔹 Numeric Column Summaries:")
+num_cols = train_df.select_dtypes(include=np.number).columns
+display(train_df[num_cols].describe())
+
+# 9. Outlier quick check (IQR method - counts only)
+print("\n🔹 Outlier Counts per Numeric Column:")
+for col in num_cols:
+    Q1 = train_df[col].quantile(0.25)
+    Q3 = train_df[col].quantile(0.75)
+    IQR = Q3 - Q1
+    outliers = ((train_df[col] < (Q1 - 1.5*IQR)) | (train_df[col] > (Q3 + 1.5*IQR))).sum()
+    print(f"{col}: {outliers} outliers")
+
+
+ -------------------------------------------------------------------------
+  # Handle small leftover missing values
+df["Vehicle Age"] = df["Vehicle Age"].fillna(df["Vehicle Age"].median())
+df["Insurance Duration"] = df["Insurance Duration"].fillna(df["Insurance Duration"].median())
+
+print("Remaining Missing Values After Final Fix:")
+print(df.isnull().sum().sum())  # should be 0
+-------------------------------------------------------------------------
+  X = df.drop(columns=["Premium Amount", "id"])  # features
+y = df["Premium Amount"]                       # target
