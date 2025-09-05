@@ -1,0 +1,19 @@
+This module trains a pipeline (preprocessing + XGBoost) and logs a full run to MLflow, including:
+
+✅ Preprocessing steps (numeric scaling + categorical encoding) so the pipeline can directly handle raw tabular data.
+
+✅ Params of the XGBoost model (n_estimators, learning_rate, max_depth, etc.) for reproducibility.
+
+✅ Metrics (RMSE, MAE, R², RMSLE) on a validation split to evaluate model quality.
+
+✅ Trained Model logged as a complete scikit-learn pipeline (preprocessor + estimator), ready for inference.
+
+✅ Submission CSV (insurance_predictions.csv) with predicted premium amounts for the test set.
+
+✅ Local Artifacts saved into artifacts/ (pipeline.joblib + predictions) for use in deployment (e.g., Streamlit app).
+
+✅ Experiment Tracking stored in mlruns/, so you can compare multiple runs and select the best model.
+
+✅ Reproducibility: every run is versioned and reproducible using MLflow’s logging.
+
+✅ Future Deployment Ready: the saved pipeline can be directly loaded in the Streamlit web app to serve predictions.
