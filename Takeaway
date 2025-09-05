@@ -1,0 +1,51 @@
+
+Data Quality Matters
+
+Even the best models fail without clean data.
+
+Handling missing values, fixing inconsistent categories (like Unknown), and creating new features (Policy_Year, Policy_Age) had a bigger impact on accuracy than adding more complex models.
+
+Feature Engineering is Powerful
+
+Creating Policy_Age gave the model a direct signal of how long a policy has been active → this turned out to be a strong predictor.
+
+This shows how domain knowledge + ML is more powerful than just running algorithms blindly.
+
+Model Comparison Brings Insights
+
+Linear Regression was simple but weak → underfitted the data.
+
+Random Forest and XGBoost captured non-linearities better.
+
+Tuned XGBoost emerged as the winner, proving the importance of hyperparameter optimization.
+
+Metrics Give Different Stories
+
+RMSE showed overall prediction error.
+
+MAE gave average deviation from actual premiums.
+
+RMSLE highlighted how well the model handled smaller vs larger premiums.
+
+R² indicated explanatory power.
+Together, they gave a 360° view of model performance.
+
+Experiment Tracking Builds Professionalism
+
+Using MLflow to log parameters, metrics, and artifacts made experiments reproducible.
+
+This is exactly how data scientists work in industry → no guesswork, just traceable experiments.
+
+Deployment Brings Real-World Value
+
+Models stuck in notebooks have no business impact.
+
+Wrapping the pipeline in Streamlit turned it into an interactive tool → anyone (non-technical user) can input details and get a premium prediction.
+
+This step shows end-to-end ownership of the ML lifecycle.
+
+Documentation Builds Trust
+
+Structured repo (EDA, Preprocessing, Model Training, MLflow, Deployment) + README.md makes the project easy to follow.
+
+This is important for evaluators, recruiters, and collaborators.
