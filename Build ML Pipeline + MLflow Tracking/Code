@@ -1,0 +1,152 @@
+!pip -q install mlflow==2.12.1  # stable & Colab-friendly
+import mlflow
+mlflow.set_tracking_uri("file:///content/mlruns")   # local folder; change if you have a server
+mlflow.set_experiment("SmartPremium-Insurance")     # creates/uses this experiment
+--------------------------------------------------------------------------------------------------
+from xgboost import XGBRegressor
+from sklearn.pipeline import Pipeline
+
+# use your tuned params from earlier; edit if yours differ
+final_xgb = XGBRegressor(
+    n_estimators=400,
+    max_depth=8,
+    learning_rate=0.03,
+    subsample=0.7,
+    colsample_bytree=0.8,
+    reg_lambda=0.5,
+    random_state=42,
+    n_jobs=-1,
+    tree_method="hist"
+)
+
+pipe = Pipeline(steps=[
+    ("prep", preprocessor),   # the ColumnTransformer you already fit earlier
+    ("model", final_xgb)
+])
+---------------------------------------------------------------------------------------------
+import numpy as np
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+def rmsle(y_true, y_pred):
+    y_true = np.maximum(y_true, 0)
+    y_pred = np.maximum(y_pred, 0)
+    return np.sqrt(np.mean((np.log1p(y_pred) - np.log1p(y_true))**2))
+
+def compute_metrics(y_true, y_pred):
+    return {
+        "rmse":  float(np.sqrt(mean_squared_error(y_true, y_pred))),
+        "mae":   float(mean_absolute_error(y_true, y_pred)),
+        "r2":    float(r2_score(y_true, y_pred)),
+        "rmsle": float(rmsle(y_true, y_pred)),
+    }
+---------------------------------------------------------------------------------------
+from mlflow.tracking import MlflowClient
+client = MlflowClient()
+exp = client.get_experiment_by_name("SmartPremium-Insurance")
+runs = client.search_runs(exp.experiment_id, order_by=["metrics.rmse ASC"])
+[(r.info.run_id, r.data.metrics.get("rmse"), r.data.metrics.get("rmsle")) for r in runs[:5]]
+---------------------------------------------------------------------------------
+with mlflow.start_run(run_name="xgb_tuned_pipeline_fulltrain", tags={"stage":"final"}) as run:
+    # fit on FULL training data (raw X_full; pipeline handles prep)
+    pipe.fit(X_full, y_full)
+
+    # optional: back-evaluate on the held-out val to log comparable metrics, too
+    val_pred = pipe.predict(X_val)
+    for k, v in compute_metrics(y_val, val_pred).items():
+        mlflow.log_metric(f"val_{k}", v)
+
+    # log final model
+    mlflow.sklearn.log_model(pipe, artifact_path="model")
+
+    # predict test and save CSV
+    test_pred = pipe.predict(X_test)
+    sub = sample_submission.copy()
+    pred_col = next((c for c in sub.columns if c.lower().startswith("pred") or "premium" in c.lower()), "Premium Amount")
+    sub[pred_col] = test_pred
+    sub.to_csv("insurance_predictions.csv", index=False)
+    mlflow.log_artifact("insurance_predictions.csv")
+
+print("✅ Final model logged and insurance_predictions.csv created.")
+---------------------------------------------------------------------------------------------------------------------
+import numpy as np
+import pandas as pd
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+# ------- helpers -------
+def _rmse(y_true, y_pred):
+    return float(np.sqrt(mean_squared_error(y_true, y_pred)))
+
+def _rmsle(y_true, y_pred):
+    y_true = np.maximum(y_true, 0)
+    y_pred = np.maximum(y_pred, 0)
+    return float(np.sqrt(np.mean((np.log1p(y_pred) - np.log1p(y_true))**2)))
+
+def _add(rows, name, y_true_var, y_pred_var):
+    # Only add if variables exist
+    if (y_true_var in globals()) and (y_pred_var in globals()):
+        y_true = globals()[y_true_var]
+        y_pred = globals()[y_pred_var]
+        # align lengths safely
+        n = min(len(y_true), len(y_pred))
+        rows.append({
+            "Model": name,
+            "RMSE":  _rmse(y_true[:n], y_pred[:n]),
+            "MAE":   float(mean_absolute_error(y_true[:n], y_pred[:n])),
+            "R2":    float(r2_score(y_true[:n], y_pred[:n])),
+            "RMSLE": _rmsle(y_true[:n], y_pred[:n]),
+        })
+
+# ------- collect results from available preds -------
+rows = []
+_add(rows, "Linear Regression",            "y_val", "pred_val_lr")
+_add(rows, "LinReg + log1p(y)",            "y_val", "pred_val_lrlog")
+_add(rows, "RandomForest FULL",            "y_val", "pred_val_rf_full")
+_add(rows, "XGB (plain)",                  "y_val", "pred_val_xgb")
+_add(rows, "XGB Tuned (subset best)",      "y_val", "pred_val_best")
+_add(rows, "XGB Tuned FULL DATA",          "y_val", "pred_val_full")
+_add(rows, "XGB + log1p(y) + ES",          "y_val", "pred_val_xgb_log")
+_add(rows, "XGB EarlyStop",                "y_val", "pred_val_es")
+
+if not rows:
+    raise RuntimeError("No prediction arrays found in memory. Re-run the model cells (e.g., pred_val_full) and try again.")
+
+compare_df = pd.DataFrame(rows)
+
+# Rank: lowest RMSE, then RMSLE, then MAE
+compare_df = compare_df.sort_values(by=["RMSE","RMSLE","MAE"], ascending=[True, True, True]).reset_index(drop=True)
+
+# Show and export
+display(compare_df)
+compare_df.to_csv("model_comparison.csv", index=False)
+print("✅ Exported model_comparison.csv")
+
+# ------- pick the winner -------
+best_name = compare_df.loc[0, "Model"]
+print(f"🏆 Best model by RMSE → {best_name}")
+
+# Optional: set FINAL_MODEL if the trained estimator exists
+# Map table names → your estimator variable names (adjust if you used different names)
+name_to_var = {
+    "Linear Regression": "linreg",
+    "LinReg + log1p(y)": "log_ttr",
+    "RandomForest FULL": "rf_full",
+    "XGB (plain)": "xgb",
+    "XGB Tuned (subset best)": "best_xgb",
+    "XGB Tuned FULL DATA": "best_xgb_full",
+    "XGB + log1p(y) + ES": "ttr_xgb",
+    "XGB EarlyStop": "xgb_es",
+}
+
+FINAL_MODEL = None
+chosen_var = name_to_var.get(best_name)
+if chosen_var and (chosen_var in globals()):
+    FINAL_MODEL = globals()[chosen_var]
+    print(f"✅ FINAL_MODEL set to variable: {chosen_var}")
+else:
+    print("⚠️ Could not auto-bind FINAL_MODEL (model object not found). "
+          "Use the printed winner name to set FINAL_MODEL manually.")
+----------------------------------------------------------------------------------
+import joblib, os
+os.makedirs("artifacts", exist_ok=True)
+joblib.dump(pipe, "artifacts/pipeline.joblib")
+print("saved -> artifacts/pipeline.joblib")
