@@ -1,0 +1,22 @@
+Metrics used:
+
+RMSE (Root Mean Squared Error)
+
+MAE (Mean Absolute Error)
+
+R² (Coefficient of Determination)
+
+RMSLE (Root Mean Squared Logarithmic Error)
+
+ *Model Comparison Table (Validation Set)*
+
+Model	RMSE	MAE	R²	RMSLE
+XGB Tuned FULL DATA	837.13	634.11	0.0622	1.1376
+XGB (plain)	837.41	632.99	0.0616	1.1364
+RandomForest FULL	838.03	632.75	0.0602	1.1375
+XGB EarlyStop	841.50	635.03	0.0524	1.1402
+Linear Regression	862.82	666.83	0.0038	1.1680
+XGB + log1p(y) + ES	925.13	625.22	-0.145	1.0529
+LinReg + log1p(y)	939.71	647.96	-0.182	1.0889
+
+ Winner: XGB Tuned FULL DATA 
