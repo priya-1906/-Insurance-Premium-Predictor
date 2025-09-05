@@ -1,0 +1,17 @@
+This module takes the trained ML pipeline (preprocessing + XGBoost model) and deploys it as an interactive Streamlit application.
+
+What it does
+
+Loads the trained pipeline (artifacts/pipeline.joblib) that was saved during model training.
+
+Interactive UI where users can input customer and policy details (age, income, dependents, health score, etc.).
+
+Auto-handles preprocessing: the pipeline applies the same scaling and encoding used during training.
+
+Predict button instantly shows the estimated Insurance Premium Amount.
+
+Expandable section displays the input data used for prediction.
+
+Custom defaults (like Age = 35, Income = 30,000, Dependents = 2) to make testing easier.
+
+Deployed via ngrok / localtunnel to share the app from Google Colab.
