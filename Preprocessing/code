@@ -1,0 +1,209 @@
+import pandas as pd
+import numpy as np
+
+# Copy dataset to avoid overwriting
+df = train_df.copy()
+
+# -------------------------------
+# 1. Feature Engineering: Policy Start Date
+# -------------------------------
+df["Policy Start Date"] = pd.to_datetime(df["Policy Start Date"], errors="coerce")
+
+# Extract year & month
+df["Policy_Year"] = df["Policy Start Date"].dt.year
+df["Policy_Month"] = df["Policy Start Date"].dt.month
+
+# Policy age (in years) relative to latest policy date
+max_date = df["Policy Start Date"].max()
+df["Policy_Age"] = ((max_date - df["Policy Start Date"]).dt.days) // 365
+
+# Drop original datetime column (not ML-friendly)
+df = df.drop(columns=["Policy Start Date"])
+
+# -------------------------------
+# 2. Handle Missing Values
+# -------------------------------
+
+# Numerical features → impute with median
+num_cols = ["Age", "Annual Income", "Health Score", "Credit Score", "Number of Dependents", "Previous Claims"]
+for col in num_cols:
+    df[col] = df[col].fillna(df[col].median())
+
+# Categorical features → impute with mode / "Unknown"
+cat_cols = ["Occupation", "Customer Feedback", "Marital Status"]
+for col in cat_cols:
+    if df[col].isnull().sum() > 0:
+        if df[col].dtype == "object":
+            df[col] = df[col].fillna("Unknown")
+        else:
+            df[col] = df[col].fillna(df[col].mode()[0])
+
+# -------------------------------
+# 3. Check that no nulls remain
+# -------------------------------
+print("Remaining Missing Values:")
+print(df.isnull().sum().sort_values(ascending=False).head(10))
+
+df.head()
+----------------------------------------------------------------------------------------------
+  from sklearn.compose import make_column_selector
+
+num_cols = X.select_dtypes(include=np.number).columns
+cat_cols = X.select_dtypes(include="object").columns
+
+print("Numeric columns:", num_cols.tolist())
+print("Categorical columns:", cat_cols.tolist())
+------------------------------------------------------------------------------
+  from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.impute import SimpleImputer
+from sklearn.compose import ColumnTransformer
+
+# Numeric pipeline
+numeric_transformer = Pipeline(steps=[
+    ("scaler", StandardScaler())
+])
+
+# Categorical pipeline
+categorical_transformer = Pipeline(steps=[
+    ("encoder", OneHotEncoder(handle_unknown="ignore"))
+])
+
+# Full preprocessor
+preprocessor = ColumnTransformer(
+    transformers=[
+        ("num", numeric_transformer, num_cols),
+        ("cat", categorical_transformer, cat_cols)
+    ]
+)
+--------------------------------------------------------------------------
+  from sklearn.model_selection import train_test_split
+
+X_train, X_val, y_train, y_val = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+print(X_train.shape, X_val.shape)
+----------------------------------------------------------------
+  # =========================
+# PREPROCESSING (FINALIZED)
+# =========================
+
+import pandas as pd
+import numpy as np
+
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, RobustScaler
+
+# ------------------------------------------------------------------
+# Assumptions:
+# - You already created `df` from train_df with:
+#   * Policy_Year, Policy_Month, Policy_Age engineered
+#   * All missing values handled (df has 0 nulls)
+#   * Dropped original "Policy Start Date" from df
+# - train_df, test_df are still available (raw copies loaded from CSV)
+# ------------------------------------------------------------------
+
+# 1) Compute max_date from TRAIN (robust, from raw train_df)
+_train_ts = train_df.copy()
+_train_ts["Policy Start Date"] = pd.to_datetime(_train_ts["Policy Start Date"], errors="coerce")
+max_date_train = _train_ts["Policy Start Date"].max()
+
+# 2) Prepare TEST with the same feature engineering & imputations (using TRAIN stats)
+test_proc = test_df.copy()
+
+# a) Policy date → features
+test_proc["Policy Start Date"] = pd.to_datetime(test_proc["Policy Start Date"], errors="coerce")
+test_proc["Policy_Year"]  = test_proc["Policy Start Date"].dt.year
+test_proc["Policy_Month"] = test_proc["Policy Start Date"].dt.month
+test_proc["Policy_Age"]   = ((max_date_train - test_proc["Policy Start Date"]).dt.days) // 365
+test_proc = test_proc.drop(columns=["Policy Start Date"])
+
+# b) Impute test using TRAIN stats
+num_cols_impute = ["Age", "Annual Income", "Health Score", "Credit Score",
+                   "Number of Dependents", "Previous Claims", "Vehicle Age", "Insurance Duration"]
+cat_cols_impute = ["Occupation", "Customer Feedback", "Marital Status"]
+
+# Build TRAIN medians/modes
+train_medians = {c: df[c].median() for c in num_cols_impute if c in df.columns}
+train_modes   = {}
+for c in cat_cols_impute:
+    if c in df.columns:
+        # For objects we use "Unknown"; for any non-object fallback to mode
+        if df[c].dtype == "O":
+            train_modes[c] = None  # not used; we'll set "Unknown"
+        else:
+            train_modes[c] = df[c].mode()[0]
+
+# Fill TEST numerics with TRAIN medians
+for c in num_cols_impute:
+    if c in test_proc.columns:
+        test_proc[c] = test_proc[c].fillna(train_medians[c])
+
+# Fill TEST categoricals to "Unknown" (consistent with your train handling)
+for c in cat_cols_impute:
+    if c in test_proc.columns:
+        if test_proc[c].dtype == "O":
+            test_proc[c] = test_proc[c].fillna("Unknown")
+        else:
+            test_proc[c] = test_proc[c].fillna(train_modes[c])
+
+# 3) Split X/y from TRAIN (drop id; keep engineered cols)
+TARGET = "Premium Amount"
+X_full = df.drop(columns=[TARGET, "id"])
+y_full = df[TARGET]
+
+# Align TEST columns to TRAIN feature set (raw, before encoding)
+X_test = test_proc[X_full.columns]  # will raise if mismatch; safer during development
+
+# 4) Identify numeric & categorical columns
+num_cols = X_full.select_dtypes(include=[np.number]).columns.tolist()
+cat_cols = X_full.select_dtypes(include=["object"]).columns.tolist()
+
+print("Numeric columns:", len(num_cols), num_cols[:10], "...")
+print("Categorical columns:", len(cat_cols), cat_cols)
+
+# 5) ColumnTransformer (RobustScaler for skewed numerics; OneHot for cats)
+numeric_transformer = Pipeline(steps=[
+    ("scaler", RobustScaler())
+])
+
+# Handle sklearn version differences for OneHotEncoder arg name
+try:
+    categorical_transformer = Pipeline(steps=[
+        ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False))
+    ])
+except TypeError:
+    # For scikit-learn < 1.2
+    categorical_transformer = Pipeline(steps=[
+        ("onehot", OneHotEncoder(handle_unknown="ignore", sparse=False))
+    ])
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ("num", numeric_transformer, num_cols),
+        ("cat", categorical_transformer, cat_cols),
+    ],
+    remainder="drop"
+)
+
+# 6) Train/validation split
+X_train, X_val, y_train, y_val = train_test_split(
+    X_full, y_full, test_size=0.2, random_state=42
+)
+
+# 7) Fit preprocessor and transform
+_ = preprocessor.fit(X_train)
+X_train_pp = preprocessor.transform(X_train)
+X_val_pp   = preprocessor.transform(X_val)
+X_test_pp  = preprocessor.transform(X_test)
+
+print("Shapes after preprocessing:",
+      "\n  X_train_pp:", X_train_pp.shape,
+      "\n  X_val_pp  :", X_val_pp.shape,
+      "\n  X_test_pp :", X_test_pp.shape)
+
+
+----------------
