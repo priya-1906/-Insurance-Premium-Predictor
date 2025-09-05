@@ -1,0 +1,11 @@
+Linear Regression (Baseline)
+
+Linear Regression + log1p(y)
+
+Random Forest (full data)
+
+XGBoost (plain)
+
+XGBoost Tuned (subset + full data)
+
+XGBoost + log1p(y) with EarlyStopping
