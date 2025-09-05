@@ -1,0 +1,17 @@
+Preprocessing
+
+Feature Engineering:
+
+Extracted Policy_Year, Policy_Month, Policy_Age from Policy Start Date
+
+Missing Values:
+
+Numerical → median
+
+Categorical → "Unknown" or mode
+
+Encoding & Scaling:
+
+OneHotEncoder for categorical variables
+
+RobustScaler for numerical variables
