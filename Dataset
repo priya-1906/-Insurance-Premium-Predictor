@@ -1,0 +1,7 @@
+train.csv → Training data with features + target (Premium Amount)
+
+test.csv → Test data for predictions
+
+sample_submission.csv → Submission format
+
+Target Variable: Premium Amount
