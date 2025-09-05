@@ -1,0 +1,9 @@
+Dataset shape, info, and missing values
+
+Feature distributions (Age, Income, Credit Score, Health Score)
+
+Target variable (Premium Amount) distribution
+
+Outlier detection (IQR method)
+
+Correlation heatmap
