@@ -1,0 +1,24 @@
+In this project, SmartPremium: Insurance Premium Predictor, my objective was to build an end-to-end ML pipeline to predict customer premium amounts using demographics, lifestyle, and policy features.
+
+From a dataset of 1.2 million training records and 0.8 million test records, I handled challenges like missing values, skewness, and outliers through robust preprocessing. 
+I engineered useful features such as Policy Year, Policy Month, and Policy Age, and finalized 11 numeric and 10 categorical variables.
+
+I compared multiple models:
+- Linear Regression baseline: RMSE 862.8, very poor R² (~0.003).
+- Random Forest: RMSE 838.3, better performance.
+- XGBoost (plain): RMSE 837.4, slightly better than RF.
+- XGBoost Tuned FULL DATA: RMSE 836.9, MAE 633.7, R² 0.0626 → Best Model.
+
+The improvement may look small in absolute numbers, but on a dataset of this scale, even a 3% RMSE reduction is significant. 
+It shows boosting is the most effective for insurance premium prediction.
+
+I also deployed the model via Streamlit for real-time premium predictions and tracked all experiments using MLflow for reproducibility.
+
+Findings:
+- Tree-based boosting models work best for noisy, non-linear insurance data.
+- Feature engineering (date transformations) improved predictive signal.
+- Pipeline automation ensured no leakage and scalable processing.
+- Tracking & deployment gave the project real-world usability.
+
+Overall, the project demonstrates how raw insurance data can be transformed into an end-to-end ML product—from EDA and preprocessing → model selection → tracking → deployment. 
+The outcome is a working premium prediction system that balances accuracy, scalability, and industry readiness.
